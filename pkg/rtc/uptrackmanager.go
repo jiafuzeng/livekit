@@ -424,22 +424,16 @@ func (u *UpTrackManager) DebugInfo() map[string]any {
 func (u *UpTrackManager) GetAudioLevel() (level float64, active bool) {
 	level = 0
 	tracks := u.GetPublishedTracks()
-	sources := make([]string, 0, len(tracks))
 	for _, pt := range tracks {
-		sources = append(sources, pt.Source().String())
 		if pt.Source() == livekit.TrackSource_MICROPHONE {
 			tl, ta := pt.GetAudioLevel()
 			if ta {
 				active = true
-				if tl > level {
-					level = tl
-				}
+			}
+			if tl > level {
+				level = tl
 			}
 		}
-	}
-	// 排查音量：若有音频轨道但 active 为 false（例如 Agent 用非 MICROPHONE source），打日志
-	if len(tracks) > 0 && !active {
-		u.params.Logger.Debugw("GetAudioLevel no active level", "trackCount", len(tracks), "sources", sources, "level", level)
 	}
 	return
 }
