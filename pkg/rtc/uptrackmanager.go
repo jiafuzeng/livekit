@@ -260,26 +260,85 @@ func (u *UpTrackManager) UpdatePublishedVideoTrack(update *livekit.UpdateLocalVi
 
 func (u *UpTrackManager) AddPublishedTrack(track types.MediaTrack) {
 	u.lock.Lock()
-	if _, ok := u.publishedTracks[track.ID()]; !ok {
-		u.publishedTracks[track.ID()] = track
+	// Remove old tracks with the same source (e.g. Agent reconnects and re-publishes MICROPHONE).
+	// Having multiple tracks of the same source causes GetAudioLevel aggregation issues.
+	source := track.Source()
+	var toRemove []types.MediaTrack
+	var existingTrackIDs []livekit.TrackID
+	for _, t := range u.publishedTracks {
+		existingTrackIDs = append(existingTrackIDs, t.ID())
+		if t.ID() != track.ID() && t.Source() == source {
+			toRemove = append(toRemove, t)
+		}
 	}
 	u.lock.Unlock()
-	u.params.Logger.Debugw("added published track", "trackID", track.ID(), "trackInfo", logger.Proto(track.ToProto()))
+
+	u.params.Logger.Infow("AddPublishedTrack entry",
+		"trackID", track.ID(),
+		"source", source.String(),
+		"kind", track.Kind().String(),
+		"existingTracks", existingTrackIDs,
+		"oldTracksWithSameSource", len(toRemove),
+	)
+
+	for _, t := range toRemove {
+		u.params.Logger.Infow("removing old track with same source before adding new",
+			"source", source.String(),
+			"oldTrackID", t.ID(),
+			"oldKind", t.Kind().String(),
+			"newTrackID", track.ID(),
+		)
+		u.RemovePublishedTrack(t, false)
+	}
+
+	u.lock.Lock()
+	added := false
+	if _, ok := u.publishedTracks[track.ID()]; !ok {
+		u.publishedTracks[track.ID()] = track
+		added = true
+	}
+	// collect final track IDs for logging
+	var finalTrackIDs []livekit.TrackID
+	for id := range u.publishedTracks {
+		finalTrackIDs = append(finalTrackIDs, id)
+	}
+	u.lock.Unlock()
+
+	u.params.Logger.Infow("AddPublishedTrack result",
+		"trackID", track.ID(),
+		"added", added,
+		"totalPublishedTracks", len(finalTrackIDs),
+		"publishedTrackIDs", finalTrackIDs,
+		"trackInfo", logger.Proto(track.ToProto()),
+	)
 
 	track.AddOnClose(func(_isExpectedToResume bool) {
 		u.lock.Lock()
 		delete(u.publishedTracks, track.ID())
-		// not modifying subscription permissions, will get reset on next update from participant
+		remaining := len(u.publishedTracks)
 		u.lock.Unlock()
+		u.params.Logger.Infow("track closed, removed from publishedTracks",
+			"trackID", track.ID(),
+			"source", track.Source().String(),
+			"expectedToResume", _isExpectedToResume,
+			"remainingCount", remaining,
+		)
 	})
 }
 
 func (u *UpTrackManager) RemovePublishedTrack(track types.MediaTrack, isExpectedToResume bool) {
+	u.params.Logger.Infow("RemovePublishedTrack called",
+		"trackID", track.ID(),
+		"source", track.Source().String(),
+		"kind", track.Kind().String(),
+		"isExpectedToResume", isExpectedToResume,
+	)
 	track.Close(isExpectedToResume)
 
 	u.lock.Lock()
 	delete(u.publishedTracks, track.ID())
 	u.lock.Unlock()
+	u.params.Logger.Infow("RemovePublishedTrack done", "trackID", track.ID())
 }
 
 func (u *UpTrackManager) getPublishedTrackLocked(trackID livekit.TrackID) types.MediaTrack {
@@ -423,7 +482,10 @@ func (u *UpTrackManager) DebugInfo() map[string]any {
 
 func (u *UpTrackManager) GetAudioLevel() (level float64, active bool) {
 	level = 0
-	for _, pt := range u.GetPublishedTracks() {
+	tracks := u.GetPublishedTracks()
+	sources := make([]string, 0, len(tracks))
+	for _, pt := range tracks {
+		sources = append(sources, pt.Source().String())
 		if pt.Source() == livekit.TrackSource_MICROPHONE {
 			tl, ta := pt.GetAudioLevel()
 			if ta {
@@ -433,6 +495,10 @@ func (u *UpTrackManager) GetAudioLevel() (level float64, active bool) {
 				}
 			}
 		}
+	}
+	// 排查音量：若有音频轨道但 active 为 false（例如 Agent 用非 MICROPHONE source），打日志
+	if len(tracks) > 0 && !active {
+		u.params.Logger.Debugw("GetAudioLevel no active level", "trackCount", len(tracks), "sources", sources, "level", level)
 	}
 	return
 }

@@ -212,6 +212,9 @@ type BufferBase struct {
 	packetTooOldCount     atomic.Uint32
 	extPacketTooMuchCount atomic.Uint32
 
+	// 采样用：每 N 个 audio level 包打一条日志，避免刷屏
+	audioLevelLogSample atomic.Uint32
+
 	absCaptureTimeExtID uint8
 
 	keyFrameSeederGeneration atomic.Int32
@@ -920,6 +923,13 @@ func (b *BufferBase) processAudioSsrcLevelHeaderExtension(p *rtp.Packet, arrival
 		ext := rtp.AudioLevelExtension{}
 		if err := ext.Unmarshal(e); err == nil {
 			b.audioLevel.ObserveWithRTPTimestamp(ext.Level, p.Timestamp, arrivalTime)
+			// 采样日志：每 100 个包打一条，便于排查 Agent 音量是否从 RTP 扩展解析到
+			if n := b.audioLevelLogSample.Add(1); n%100 == 1 {
+				b.logger.Debugw("audio level from RTP extension",
+					"ssrc", b.params.SSRC,
+					"level", ext.Level,
+					"sample", n)
+			}
 		}
 	}
 }

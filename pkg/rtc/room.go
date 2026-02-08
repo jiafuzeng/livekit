@@ -378,8 +378,11 @@ func (r *Room) GetParticipantCount() int {
 func (r *Room) GetActiveSpeakers() []*livekit.SpeakerInfo {
 	participants := r.GetParticipants()
 	speakers := make([]*livekit.SpeakerInfo, 0, len(participants))
+	// 排查音量：记录每个参与者的 level/active，便于确认 Agent 是否被计入
+	participantLevels := make([]interface{}, 0, len(participants)*3)
 	for _, p := range participants {
 		level, active := p.GetAudioLevel()
+		participantLevels = append(participantLevels, "sid", p.ID(), "identity", p.Identity(), "level", level, "active", active)
 		if !active {
 			continue
 		}
@@ -389,6 +392,7 @@ func (r *Room) GetActiveSpeakers() []*livekit.SpeakerInfo {
 			Active: active,
 		})
 	}
+	r.logger.Debugw("GetActiveSpeakers", "participantCount", len(participants), "activeSpeakersCount", len(speakers), "participantLevels", participantLevels)
 
 	sort.Slice(speakers, func(i, j int) bool {
 		return speakers[i].Level > speakers[j].Level
@@ -1296,6 +1300,7 @@ func (r *Room) onSubscribeStatusChanged(participant types.LocalParticipant, publ
 			// when a participant subscribes to another participant,
 			// send speaker update if the subscribed to participant is active.
 			level, active := pub.GetAudioLevel()
+			r.logger.Debugw("onSubscribeStatusChanged subscribed", "subscriber", participant.Identity(), "publisherID", publisherID, "publisherIdentity", pub.Identity(), "level", level, "active", active)
 			if active {
 				_ = participant.SendSpeakerUpdate([]*livekit.SpeakerInfo{
 					{
@@ -1547,11 +1552,14 @@ func (r *Room) broadcastParticipantState(p types.Participant, opts broadcastOpti
 
 // for protocol 3, send only changed updates
 func (r *Room) sendSpeakerChanges(speakers []*livekit.SpeakerInfo) {
+	recipientCount := 0
 	for _, p := range r.GetParticipants() {
 		if p.ProtocolVersion().SupportsSpeakerChanged() {
 			_ = p.SendSpeakerUpdate(speakers, false)
+			recipientCount++
 		}
 	}
+	r.logger.Debugw("sendSpeakerChanges", "speakerCount", len(speakers), "recipientCount", recipientCount)
 }
 
 func (r *Room) updateProto() *livekit.Room {
@@ -1636,6 +1644,11 @@ func (r *Room) audioUpdateWorker() {
 
 		// see if an update is needed
 		if len(changedSpeakers) > 0 {
+			speakerDiffs := make([]interface{}, 0, len(changedSpeakers)*3)
+			for _, s := range changedSpeakers {
+				speakerDiffs = append(speakerDiffs, "sid", s.Sid, "level", s.Level, "active", s.Active)
+			}
+			r.logger.Debugw("audioUpdateWorker sending speaker changes", "changedCount", len(changedSpeakers), "speakers", speakerDiffs)
 			r.sendSpeakerChanges(changedSpeakers)
 		}
 

@@ -141,6 +141,12 @@ func (p *ParticipantImpl) SendSpeakerUpdate(speakers []*livekit.SpeakerInfo, for
 			}
 		}
 	}
+	// 排查音量：记录下发给该参与者的 speaker 列表（sid/level/active）
+	speakerKvs := make([]interface{}, 0, len(scopedSpeakers)*3)
+	for _, s := range scopedSpeakers {
+		speakerKvs = append(speakerKvs, "sid", s.Sid, "level", s.Level, "active", s.Active)
+	}
+	p.GetLogger().Debugw("SendSpeakerUpdate", "identity", p.Identity(), "force", force, "inputCount", len(speakers), "scopedCount", len(scopedSpeakers), "speakers", speakerKvs)
 
 	return p.signaller.WriteMessage(p.signalling.SignalSpeakerUpdate(scopedSpeakers))
 }
