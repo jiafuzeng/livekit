@@ -270,11 +270,23 @@ func (u *UpTrackManager) AddPublishedTrack(track types.MediaTrack) {
 	track.AddOnClose(func(_isExpectedToResume bool) {
 		u.lock.Lock()
 		delete(u.publishedTracks, track.ID())
+		remaining := len(u.publishedTracks)
 		u.lock.Unlock()
+		u.params.Logger.Debugw("track closed, removed from publishedTracks",
+			"trackID", track.ID(),
+			"source", track.Source().String(),
+			"expectedToResume", _isExpectedToResume,
+			"remainingCount", remaining,
+		)
 	})
 }
 
 func (u *UpTrackManager) RemovePublishedTrack(track types.MediaTrack, isExpectedToResume bool) {
+	u.params.Logger.Debugw("RemovePublishedTrack",
+		"trackID", track.ID(),
+		"source", track.Source().String(),
+		"isExpectedToResume", isExpectedToResume,
+	)
 	track.Close(isExpectedToResume)
 
 	u.lock.Lock()
@@ -424,8 +436,10 @@ func (u *UpTrackManager) DebugInfo() map[string]any {
 func (u *UpTrackManager) GetAudioLevel() (level float64, active bool) {
 	level = 0
 	tracks := u.GetPublishedTracks()
+	var micTrackCount int
 	for _, pt := range tracks {
 		if pt.Source() == livekit.TrackSource_MICROPHONE {
+			micTrackCount++
 			tl, ta := pt.GetAudioLevel()
 			if ta {
 				active = true
@@ -434,6 +448,20 @@ func (u *UpTrackManager) GetAudioLevel() (level float64, active bool) {
 				level = tl
 			}
 		}
+	}
+	// 多条 MICROPHONE 轨时打日志（重连后同 source 多轨易导致音量异常）
+	if micTrackCount > 1 {
+		sources := make([]string, 0, len(tracks))
+		for _, pt := range tracks {
+			sources = append(sources, pt.Source().String())
+		}
+		u.params.Logger.Debugw("GetAudioLevel multiple MICROPHONE tracks",
+			"trackCount", len(tracks),
+			"micTrackCount", micTrackCount,
+			"sources", sources,
+			"level", level,
+			"active", active,
+		)
 	}
 	return
 }

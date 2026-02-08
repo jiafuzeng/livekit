@@ -3296,6 +3296,27 @@ func (p *ParticipantImpl) addMediaTrack(signalCid string, ti *livekit.TrackInfo)
 	mt.OnSubscribedMaxQualityChange(p.onSubscribedMaxQualityChange)
 	mt.OnSubscribedAudioCodecChange(p.onSubscribedAudioCodecChange)
 
+	// Collect old tracks with same source (e.g. reconnection re-publishes MICROPHONE).
+	// Remove them asynchronously after this call returns so Close callbacks don't run inside addMediaTrack.
+	var sameSourceToRemove []types.MediaTrack
+	for _, t := range p.GetPublishedTracks() {
+		if t.ID() != mt.ID() && t.Source() == mt.Source() {
+			sameSourceToRemove = append(sameSourceToRemove, t)
+		}
+	}
+	if len(sameSourceToRemove) > 0 {
+		oldIDs := make([]livekit.TrackID, 0, len(sameSourceToRemove))
+		for _, t := range sameSourceToRemove {
+			oldIDs = append(oldIDs, t.ID())
+		}
+		p.pubLogger.Debugw("same-source tracks to remove after add",
+			"newTrackID", mt.ID(),
+			"source", mt.Source().String(),
+			"oldTrackCount", len(sameSourceToRemove),
+			"oldTrackIDs", oldIDs,
+		)
+	}
+
 	// add to published and clean up pending
 	if p.supervisor != nil {
 		p.supervisor.SetPublishedTrack(livekit.TrackID(ti.Sid), mt)
@@ -3353,6 +3374,22 @@ func (p *ParticipantImpl) addMediaTrack(signalCid string, ti *livekit.TrackInfo)
 		)
 		p.listener().OnTrackUnpublished(p, mt)
 	})
+
+	if len(sameSourceToRemove) > 0 {
+		tracksToRemove := sameSourceToRemove
+		newTrackID := mt.ID()
+		newSource := mt.Source().String()
+		go func() {
+			for _, t := range tracksToRemove {
+				p.pubLogger.Debugw("removing old track with same source",
+					"oldTrackID", t.ID(),
+					"newTrackID", newTrackID,
+					"source", newSource,
+				)
+				p.removePublishedTrack(t)
+			}
+		}()
+	}
 
 	return mt
 }
