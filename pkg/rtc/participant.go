@@ -3296,6 +3296,15 @@ func (p *ParticipantImpl) addMediaTrack(signalCid string, ti *livekit.TrackInfo)
 	mt.OnSubscribedMaxQualityChange(p.onSubscribedMaxQualityChange)
 	mt.OnSubscribedAudioCodecChange(p.onSubscribedAudioCodecChange)
 
+	// Remove old tracks with the same source (e.g. Flutter/Agent reconnects and re-publishes MICROPHONE).
+	// Having multiple tracks of the same source causes GetAudioLevel aggregation issues and subscribers
+	// may not receive speaker/volume updates. Use full participant removal path so room and client get correct signals.
+	for _, t := range p.GetPublishedTracks() {
+		if t.ID() != mt.ID() && t.Source() == mt.Source() {
+			p.removePublishedTrack(t)
+		}
+	}
+
 	// add to published and clean up pending
 	if p.supervisor != nil {
 		p.supervisor.SetPublishedTrack(livekit.TrackID(ti.Sid), mt)
