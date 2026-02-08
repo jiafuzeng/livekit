@@ -116,7 +116,6 @@ func (p *pendingTrackInfo) MarshalLogObject(e zapcore.ObjectEncoder) error {
 
 // --------------------------------------------------
 
-
 type pendingRemoteTrack struct {
 	track    *webrtc.TrackRemote
 	receiver *webrtc.RTPReceiver
