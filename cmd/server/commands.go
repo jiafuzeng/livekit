@@ -140,6 +140,12 @@ func createToken(_ context.Context, c *cli.Command) error {
 		RoomJoin: true,
 		Room:     room,
 	}
+
+	// 👇 只允许音频（microphone）
+	if !c.Bool("recorder") {
+		grant.CanPublishSources = []string{"MICROPHONE"}
+	}
+
 	if c.Bool("recorder") {
 		grant.Hidden = true
 		grant.Recorder = true

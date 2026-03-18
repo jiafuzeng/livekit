@@ -507,6 +507,7 @@ func newPeerConnection(
 		webrtc.WithSettingEngine(se),
 		webrtc.WithInterceptorRegistry(ir),
 	)
+	params.Logger.Debugw("newPeerConnection api create peer connection", "config", params.Config.Configuration)
 	pc, err := api.NewPeerConnection(params.Config.Configuration)
 	return pc, me, rtxInfoExtractorFactory, err
 }
@@ -581,6 +582,7 @@ func NewPCTransport(params TransportParams) (*PCTransport, error) {
 
 func (t *PCTransport) createPeerConnection() (cc.BandwidthEstimator, error) {
 	var bwe cc.BandwidthEstimator
+	t.params.Logger.Debugw("PCTransport creating peer connection")
 	pc, me, rtxInfoExtractorFactory, err := newPeerConnection(t.params, func(estimator cc.BandwidthEstimator) {
 		bwe = estimator
 	})
@@ -920,6 +922,8 @@ func (t *PCTransport) onDataChannel(dc *webrtc.DataChannel) {
 					}
 					return
 				}
+
+				t.params.Logger.Debugw("data channel message received", "label", dc.Label(), "kind", kind, "isUnlabeled", isUnlabeled, "isDataTrack", isDataTrack, "data", buffer[:n])
 
 				switch {
 				case isUnlabeled:
@@ -2248,6 +2252,7 @@ func (t *PCTransport) parseTrackMid(sd webrtc.SessionDescription, senders map[st
 }
 
 func (t *PCTransport) postEvent(e event) {
+	t.params.Logger.Debugw("postEvent", "event", e.String())
 	e.PCTransport = t
 	t.eventsQueue.Enqueue(func(e event) {
 		var err error
@@ -2314,6 +2319,8 @@ func (t *PCTransport) localDescriptionSent() error {
 		return nil
 	}
 
+	t.params.Logger.Debugw("sending cached local candidates", "count", len(t.cachedLocalCandidates))
+
 	t.cacheLocalCandidates = false
 
 	cachedLocalCandidates := t.cachedLocalCandidates
@@ -2337,6 +2344,8 @@ func (t *PCTransport) clearLocalDescriptionSent() {
 func (t *PCTransport) handleLocalICECandidate(e event) error {
 	c := e.data.(*webrtc.ICECandidate)
 
+	// t.params.Logger.Debugw("handleLocalICECandidate", "candidate", c.String())
+
 	filtered := false
 	if c != nil {
 		if t.preferTCP.Load() && c.Protocol != webrtc.ICEProtocolTCP {
@@ -2354,6 +2363,8 @@ func (t *PCTransport) handleLocalICECandidate(e event) error {
 		t.cachedLocalCandidates = append(t.cachedLocalCandidates, c)
 		return nil
 	}
+
+	// t.params.Logger.Debugw("sending local ICE candidate", "candidate", c.String())
 
 	if err := t.params.Handler.OnICECandidate(c, t.params.Transport); err != nil {
 		t.params.Logger.Warnw("failed to send ICE candidate", err, "candidate", c)
@@ -2515,6 +2526,7 @@ func (t *PCTransport) sendUnmatchedMediaRequirement(force bool) error {
 }
 
 func (t *PCTransport) createAndSendOffer(options *webrtc.OfferOptions) error {
+	t.params.Logger.Debugw("PCTransport createAndSendOffer")
 	if t.pc.ConnectionState() == webrtc.PeerConnectionStateClosed {
 		t.params.Logger.Warnw("trying to send offer on closed peer connection", nil)
 		return nil
@@ -2702,6 +2714,8 @@ func (t *PCTransport) createAndSendAnswer() error {
 	t.numOutstandingAudios, t.numOutstandingVideos = numOutstandingAudios, numOutstandingVideos
 	t.numRequestSentAudios, t.numRequestSentVideos = 0, 0
 	t.lock.Unlock()
+
+	t.params.Logger.Debugw("creating answer", "numOutstandingAudios", numOutstandingAudios, "numOutstandingVideos", numOutstandingVideos)
 
 	answer, err := t.pc.CreateAnswer(nil)
 	if err != nil {

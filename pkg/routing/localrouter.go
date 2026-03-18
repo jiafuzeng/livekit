@@ -102,6 +102,10 @@ func (r *LocalRouter) CreateRoomWithNodeID(ctx context.Context, req *livekit.Cre
 }
 
 func (r *LocalRouter) StartParticipantSignal(ctx context.Context, roomName livekit.RoomName, pi ParticipantInit) (res StartParticipantSignalResults, err error) {
+	logger.Debugw("LocalRouter StartParticipantSignal",
+		"room", roomName,
+		"participant", pi.Identity,
+	)
 	return r.StartParticipantSignalWithNodeID(ctx, roomName, pi, r.currentNode.NodeID())
 }
 

@@ -98,6 +98,8 @@ func (t *MediaTrackSubscriptions) AddSubscriber(sub types.LocalParticipant, wr *
 	trackID := t.params.MediaTrack.ID()
 	subscriberID := sub.ID()
 
+	sub.GetLogger().Debugw("AddSubscriber", "trackID", trackID, "subscriberID", subscriberID)
+
 	// don't subscribe to the same track multiple times
 	t.subscribedTracksMu.Lock()
 	if _, ok := t.subscribedTracks[subscriberID]; ok {

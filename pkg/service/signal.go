@@ -152,6 +152,8 @@ func (r *signalService) RelaySignal(stream psrpc.ServerStream[*rpc.RelaySignalRe
 		"connID", ss.ConnectionId,
 	)
 
+	l.Debugw("signalService RelaySignal")
+
 	stream.Hijack()
 	sink := routing.NewSignalMessageSink(routing.SignalSinkParams[*rpc.RelaySignalResponse, *rpc.RelaySignalRequest]{
 		Logger:       l,

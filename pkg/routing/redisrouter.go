@@ -166,6 +166,12 @@ func (r *RedisRouter) StartParticipantSignal(ctx context.Context, roomName livek
 		return
 	}
 
+	logger.Debugw("RedisRouter StartParticipantSignal",
+		"room", roomName,
+		"participant", pi.Identity,
+		"rtcNode", rtcNode.Id,
+	)
+
 	return r.StartParticipantSignalWithNodeID(ctx, roomName, pi, livekit.NodeID(rtcNode.Id))
 }
 

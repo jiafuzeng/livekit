@@ -520,6 +520,8 @@ func (d *DownTrack) Bind(t webrtc.TrackLocalContext) (webrtc.RTPCodecParameters,
 			return
 		}
 
+		d.params.Logger.Debugw("doBind binding downtrack", "codec", codec, "matchedUpstreamCodec", matchedUpstreamCodec)
+
 		isFECEnabled := false
 		if mime.IsMimeTypeStringRED(matchedUpstreamCodec.MimeType) {
 			d.isRED = true

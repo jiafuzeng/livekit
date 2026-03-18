@@ -287,6 +287,13 @@ func (r *RoomManager) StartSession(
 ) error {
 	sessionStartTime := time.Now()
 
+	logger.Infow(
+		"RoomManager StartSession called",
+		"room", pi.CreateRoom.Name,
+		"nodeID", r.currentNode.NodeID(),
+		"participantInit", &pi,
+	)
+
 	createRoom := pi.CreateRoom
 	room, err := r.getOrCreateRoom(ctx, createRoom)
 	if err != nil {
@@ -598,6 +605,9 @@ func (r *RoomManager) StartSession(
 	}
 
 	go r.rtcSessionWorker(room, participant, requestSource)
+
+	pLogger.Debugw("RoomManager StartSession Done")
+
 	return nil
 }
 
@@ -612,6 +622,8 @@ func (r *RoomManager) getOrCreateRoom(ctx context.Context, createRoom *livekit.C
 	if lastSeenRoom != nil && lastSeenRoom.Hold() {
 		return lastSeenRoom, nil
 	}
+
+	logger.Debugw("create new room", "name", roomName)
 
 	// create new room, get details first
 	ri, internal, created, err := r.roomAllocator.CreateRoom(ctx, createRoom, true)

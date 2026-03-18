@@ -333,6 +333,8 @@ func (s *RTCService) serve(w http.ResponseWriter, r *http.Request, needsJoinRequ
 		loggerResolved = false
 	}
 
+	pLogger.Debugw("http request", "url", r.URL.String(), "remoteAddr", r.RemoteAddr, "headers", r.Header, "query", r.URL.Query())
+
 	roomName, pi, code, err = s.validateInternal(pLogger, r, needsJoinRequest, false)
 	if err != nil {
 		HandleError(w, r, code, err)
@@ -350,6 +352,7 @@ func (s *RTCService) serve(w http.ResponseWriter, r *http.Request, needsJoinRequ
 	for attempt := 0; attempt < s.config.SignalRelay.ConnectAttempts; attempt++ {
 		connectionTimeout := 3 * time.Second * time.Duration(attempt+1)
 		ctx := utils.ContextWithAttempt(r.Context(), attempt)
+		pLogger.Debugw("attempting to start connection", "timeout", connectionTimeout, "attempt", attempt)
 		cr, initialResponse, err = s.startConnection(ctx, roomName, pi, connectionTimeout)
 		if err == nil || errors.Is(err, context.Canceled) {
 			break

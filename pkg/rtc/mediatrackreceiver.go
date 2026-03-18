@@ -448,6 +448,8 @@ func (t *MediaTrackReceiver) TryClose() bool {
 }
 
 func (t *MediaTrackReceiver) Close(isExpectedToResume bool) {
+	t.params.Logger.Debugw("closing MediaTrackReceiver", "isExpectedToResume", isExpectedToResume)
+
 	t.ClearAllReceivers(isExpectedToResume)
 
 	t.lock.Lock()
@@ -538,6 +540,8 @@ func (t *MediaTrackReceiver) AddSubscriber(sub types.LocalParticipant) (types.Su
 		t.lock.RUnlock()
 		return nil, ErrNotOpen
 	}
+
+	t.params.Logger.Debugw("AddSubscriber", "trackID", t.ID(), "subscriberID", sub.ID())
 
 	receivers := t.receivers
 	potentialCodecs := make([]webrtc.RTPCodecParameters, len(t.potentialCodecs))

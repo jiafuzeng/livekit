@@ -192,6 +192,7 @@ func NewTransportManager(params TransportManagerParams) (*TransportManager, erro
 		}
 		t.subscriber = subscriber
 	}
+	lgr.Debugw("NewTransportManager")
 	if !t.params.Migration && t.params.SubscriberAsPrimary {
 		if err := t.createDataChannelsForSubscriber(nil); err != nil {
 			return nil, err
@@ -554,8 +555,10 @@ func (t *TransportManager) AddICECandidate(candidate webrtc.ICECandidateInit, ta
 
 func (t *TransportManager) NegotiateSubscriber(force bool) {
 	if t.subscriber != nil {
+		t.params.Logger.Debugw("TransportManager NegotiateSubscriber subscriber", "force", force)
 		t.subscriber.Negotiate(force)
 	} else {
+		t.params.Logger.Debugw("TransportManager NegotiateSubscriber publisher", "force", force)
 		t.publisher.Negotiate(force)
 	}
 }

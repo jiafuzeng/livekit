@@ -715,6 +715,8 @@ func (r *Room) ResolveMediaTrackForSubscriber(sub types.LocalParticipant, trackI
 	info := r.trackManager.GetTrackInfo(trackID)
 	res.TrackChangedNotifier = r.trackManager.GetOrCreateTrackChangeNotifier(trackID)
 
+	// r.logger.Debugw("room ResolveMediaTrackForSubscriber", "TrackID", trackID, "kind", info.Track.Kind(), "name", info.Track.Name(), "stream", info.Track.Stream(), "source", info.Track.Source(), "publisherIdentity", info.PublisherIdentity, "publisherID", info.PublisherID)
+
 	if info == nil {
 		return res
 	}
@@ -1223,6 +1225,8 @@ func (r *Room) onStateChange(p types.LocalParticipant) {
 	r.onStateChangeMu.Lock()
 	defer r.onStateChangeMu.Unlock()
 
+	p.GetLogger().Debugw("participant state changed", "state", p.State().String())
+
 	switch p.State() {
 	case livekit.ParticipantInfo_ACTIVE:
 		// subscribe participant to existing published tracks
@@ -1385,6 +1389,7 @@ func (r *Room) RemoveParticipant(
 	pID livekit.ParticipantID,
 	reason types.ParticipantCloseReason,
 ) {
+	r.logger.Debugw("removing participant", "identity", identity, "id", pID, "reason", reason.String())
 	r.lock.Lock()
 	p, ok := r.participants[identity]
 	if !ok {
@@ -1473,6 +1478,8 @@ func (r *Room) RemoveParticipant(
 		}
 		r.broadcastParticipantState(p, broadcastOptions{skipSource: true})
 	}
+
+	r.logger.Infow("participant removed", "identity", identity, "id", pID, "reason", reason.String())
 }
 
 func (r *Room) subscribeToExistingTracks(p types.LocalParticipant, isSync bool) {
@@ -2003,6 +2010,9 @@ func BroadcastDataPacketForRoom(
 	dp *livekit.DataPacket,
 	logger logger.Logger,
 ) {
+
+	logger.Debugw("BroadcastDataPacketForRoom", "kind", kind, "source-identity", source.Identity(), "source-id", source.ID(), "destinations", dp.DestinationIdentities, "participantIdentity", dp.ParticipantIdentity, "sequence", dp.Sequence)
+
 	dp.Kind = kind // backward compatibility
 	dest := dp.GetUser().GetDestinationSids()
 	if u := dp.GetUser(); u != nil {

@@ -168,6 +168,8 @@ func (w *WebRTCReceiver) AddUpTrack(track TrackRemote, buff *buffer.Buffer) erro
 		return ErrReceiverClosed
 	}
 
+	w.ReceiverBase.Logger().Debugw("WebRTCReceiver AddUpTrack", "rid", track.RID(), "ssrc", track.SSRC(), "layer", buffer.GetSpatialLayerForRid(w.Mime(), track.RID(), w.ReceiverBase.TrackInfo()))
+
 	layer := int32(0)
 	if w.Kind() == webrtc.RTPCodecTypeVideo && w.videoLayerMode != livekit.VideoLayer_MULTIPLE_SPATIAL_LAYERS_PER_STREAM {
 		layer = buffer.GetSpatialLayerForRid(w.Mime(), track.RID(), w.ReceiverBase.TrackInfo())

@@ -343,6 +343,9 @@ func NewParticipant(params ParticipantParams) (*ParticipantImpl, error) {
 	if params.Grants == nil || params.Grants.Video == nil {
 		return nil, ErrMissingGrants
 	}
+
+	params.Logger.Debugw("NewParticipant", "identity", params.Identity, "sid", params.SID, "name", params.Name)
+
 	p := &ParticipantImpl{
 		params:       params,
 		disconnected: make(chan struct{}),
@@ -429,6 +432,8 @@ func NewParticipant(params ParticipantParams) (*ParticipantImpl, error) {
 	p.setupUpDataTrackManager()
 	p.setupSubscriptionManager()
 	p.setupMetrics()
+
+	params.Logger.Infow("participant created", "id", p.ID(), "identity", p.Identity(), "name", p.params.Name)
 
 	return p, nil
 }
@@ -2163,6 +2168,13 @@ func (p *ParticipantImpl) onMediaTrack(rtcTrack *webrtc.TrackRemote, rtpReceiver
 		return
 	}
 
+	p.params.Logger.Debugw(
+		"onMediaTrack",
+		"kind", rtcTrack.Kind().String(),
+		"webrtcTrackID", rtcTrack.ID(),
+		"StreamID", rtcTrack.StreamID(),
+	)
+
 	var codec webrtc.RTPCodecParameters
 	var fromSdp bool
 	if rtcTrack.Kind() == webrtc.RTPCodecTypeVideo && p.params.ClientInfo.FireTrackByRTPPacket() {
@@ -2284,6 +2296,8 @@ func (p *ParticipantImpl) onReceivedDataMessage(kind livekit.DataPacket_Kind, da
 		p.pubLogger.Warnw("could not parse data packet", err)
 		return
 	}
+
+	p.params.Logger.Debugw("onReceivedDataMessage", "kind", kind, "dp", logger.Proto(dp))
 
 	dp.ParticipantSid = string(p.ID())
 	if kind == livekit.DataPacket_RELIABLE && dp.Sequence > 0 {
@@ -3774,6 +3788,8 @@ func (p *ParticipantImpl) SupportsTransceiverReuse() bool {
 }
 
 func (p *ParticipantImpl) SendDataMessage(kind livekit.DataPacket_Kind, data []byte, sender livekit.ParticipantID, seq uint32) error {
+	p.params.Logger.Debugw("sending data message", "kind", kind.String(), "sender", sender, "seq", seq)
+
 	if sender == "" || kind != livekit.DataPacket_RELIABLE || seq == 0 {
 		if p.State() != livekit.ParticipantInfo_ACTIVE {
 			return ErrDataChannelUnavailable
